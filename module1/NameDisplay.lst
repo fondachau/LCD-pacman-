@@ -1,0 +1,283 @@
+0000              1   ; LCD_test_4bit.asm: Initializes and uses an LCD in 4-bit mode
+0000              2   ; using the most common procedure found on the internet.
+                  4   $LIST
+0000              6   
+0000              7   org 0000H
+0000 02009D       8       ljmp myprogram
+0003              9   
+001B             10   org 001bH
+001B 02181B      11       ljmp 181bH
+001E             12   
+001E             13   ; These 'equ' must match the hardware wiring
+001E             14   LCD_RS equ P1.4
+001E             15   LCD_RW equ P1.5 ; Not used in this code
+001E             16   LCD_E  equ P1.6
+001E             17   LCD_D4 equ P3.2
+001E             18   LCD_D5 equ P3.3
+001E             19   LCD_D6 equ P3.4
+001E             20   LCD_D7 equ P3.5
+001E             21   
+001E             22   ; When using a 22.1184MHz crystal in fast mode
+001E             23   ; one cycle takes 1.0/22.1184MHz = 45.21123 ns
+001E             24   
+001E             25   ;---------------------------------;
+001E             26   ; Wait 40 microseconds            ;
+001E             27   ;---------------------------------;
+001E             28   Wait40uSec:
+001E C000        29       push AR0
+0020 78B1        30       mov R0, #177
+0022             31   L0:
+0022 00          32       nop
+0023 00          33       nop
+0024 D8FC        34       djnz R0, L0 ; 1+1+3 cycles->5*45.21123ns*177=40us
+0026 D000        35       pop AR0
+0028 22          36       ret
+0029             37   
+0029             38   ;---------------------------------;
+0029             39   ; Wait 'R2' milliseconds          ;
+0029             40   ;---------------------------------;
+0029             41   WaitmilliSec:
+0029 C000        42       push AR0
+002B C001        43       push AR1
+002D 792D        44   L3: mov R1, #45
+002F 78A6        45   L2: mov R0, #166
+0031 D8FE        46   L1: djnz R0, L1 ; 3 cycles->3*45.21123ns*166=22.51519us
+0033 D9FA        47       djnz R1, L2 ; 22.51519us*45=1.013ms
+0035 DAF6        48       djnz R2, L3 ; number of millisecons to wait passed in R2
+0037 D001        49       pop AR1
+0039 D000        50       pop AR0
+003B 22          51       ret
+003C             52   
+003C             53   ;---------------------------------;
+003C             54   ; Toggles the LCD's 'E' pin       ;
+003C             55   ;---------------------------------;
+003C             56   LCD_pulse:
+003C D296        57       setb LCD_E
+003E 12001E      58       lcall Wait40uSec
+0041 C296        59       clr LCD_E
+0043 22          60       ret
+0044             61   
+0044             62   ;---------------------------------;
+0044             63   ; Writes data to LCD              ;
+0044             64   ;---------------------------------;
+0044             65   WriteData:
+0044 D294        66       setb LCD_RS
+0046 02004E      67       ljmp LCD_byte
+0049             68   
+0049             69   ;---------------------------------;
+0049             70   ; Writes command to LCD           ;
+0049             71   ;---------------------------------;
+0049             72   WriteCommand:
+0049 C294        73       clr LCD_RS
+004B 02004E      74       ljmp LCD_byte
+004E             75   
+004E             76   ;---------------------------------;
+004E             77   ; Writes acc to LCD in 4-bit mode ;
+004E             78   ;---------------------------------;
+004E             79   LCD_byte:
+004E             80       ; Write high 4 bits first
+004E A2E7        81       mov c, ACC.7
+0050 92B5        82       mov LCD_D7, c
+0052 A2E6        83       mov c, ACC.6
+0054 92B4        84       mov LCD_D6, c
+0056 A2E5        85       mov c, ACC.5
+0058 92B3        86       mov LCD_D5, c
+005A A2E4        87       mov c, ACC.4
+005C 92B2        88       mov LCD_D4, c
+005E 12003C      89       lcall LCD_pulse
+0061             90   
+0061             91       ; Write low 4 bits next
+0061 A2E3        92       mov c, ACC.3
+0063 92B5        93       mov LCD_D7, c
+0065 A2E2        94       mov c, ACC.2
+0067 92B4        95       mov LCD_D6, c
+0069 A2E1        96       mov c, ACC.1
+006B 92B3        97       mov LCD_D5, c
+006D A2E0        98       mov c, ACC.0
+006F 92B2        99       mov LCD_D4, c
+0071 12003C     100       lcall LCD_pulse
+0074 22         101       ret
+0075            102   
+0075            103   ;---------------------------------;
+0075            104   ; Configure LCD in 4-bit mode     ;
+0075            105   ;---------------------------------;
+0075            106   LCD_4BIT:
+0075 C296       107       clr LCD_E   ; Resting state of LCD's enable is zero
+0077 C295       108       clr LCD_RW  ; We are only writing to the LCD in this program
+0079            109   
+0079            110       ; After power on, wait for the LCD start up time before initializing
+0079            111       ; NOTE: the preprogrammed power-on delay of 16 ms on the AT89LP52
+0079            112       ; seems to be enough.  That is why these two lines are commented out.
+0079            113       ; Also, commenting these two lines improves simulation time in Multisim.
+0079            114       ; mov R2, #40
+0079            115       ; lcall WaitmilliSec
+0079            116   
+0079            117       ; First make sure the LCD is in 8-bit mode and then change to 4-bit mode
+0079 7433       118       mov a, #0x33
+007B 120049     119       lcall WriteCommand
+007E 7433       120       mov a, #0x33
+0080 120049     121       lcall WriteCommand
+0083 7432       122       mov a, #0x32 ; change to 4-bit mode
+0085 120049     123       lcall WriteCommand
+0088            124   
+0088            125       ; Configure the LCD
+0088 7428       126       mov a, #0x28
+008A 120049     127       lcall WriteCommand
+008D 740C       128       mov a, #0x0c
+008F 120049     129       lcall WriteCommand
+0092 7401       130       mov a, #0x01 ;  Clear screen command (takes some time)
+0094 120049     131       lcall WriteCommand
+0097            132   
+0097            133       ;Wait for clear screen command to finish. Usually takes 1.52ms.
+0097 7A02       134       mov R2, #2
+0099 120029     135       lcall WaitmilliSec
+009C 22         136       ret
+009D            137   
+009D            138   ;---------------------------------;
+009D            139   ; Main loop.  Initialize stack,   ;
+009D            140   ; ports, LCD, and displays a      ;
+009D            141   ; letter on the LCD              ;
+009D            142   ;---------------------------------;
+009D            143   myprogram:
+009D 75817F     144       mov SP, #7FH
+00A0 75C100     145       mov PMOD, #0 ; Configure all ports in bidirectional mode
+00A3 120075     146       lcall LCD_4BIT
+00A6 120115     147       lcall SetPACMAN ; set the pacman into CGRAM
+00A9            148   
+00A9            149   GO:
+00A9 7480       150       MOV a, #0x80
+00AB 120049     151       LCALL WriteCommand
+00AE 900193     152       MOV DPTR, #MyName
+00B1 1201A7     153       lcall GetName ;PRINT FONDA CHAU
+00B4            154   
+00B4 74C0       155       MOV a, #0xC0
+00B6 120049     156       LCALL WriteCommand
+00B9 90019E     157       MOV DPTR, #MYSTUDENTNUMBER
+00BC 1201A7     158       lcall GetName ;PRINT 15954143
+00BF 2090FD     159       JB p1.0,$
+00C2 3090FD     160       JNB p1.0, $
+00C5 1200E1     161       lcall WaitHalfSec
+00C8 7D80       162            mov R5, #0x80 ;pacman line one start position
+00CA 7E0A       163            mov R6, #0xA ;number of times pacman eats
+00CC            164   GOPACMAN1:
+00CC 1200F0     165            lcall Eat 
+00CF 0D         166            inc R5  ;R5=R5+1
+00D0 DEFA       167       djnz R6, GOPACMAN1 ;if not done R6 times, then go do again
+00D2 7DC0       168       mov R5, #0xC0 ;reseting pacman for line 2
+00D4 7E08       169       mov R6, #0x8 ;number of times pacman eats
+00D6            170   GOPACMAN2:
+00D6 1200F0     171            lcall Eat
+00D9 0D         172            inc R5 ;R5=R5+1
+00DA DEFA       173       djnz R6, GOPACMAN2 ;if not done R6 times, then go do again
+00DC 0200A9     174            ljmp GO    ;reseting name and eating again
+00DF            175   
+00DF            176   forever:
+00DF 80FE       177       sjmp forever
+00E1            178   
+00E1            179   WaitHalfSec:
+00E1 7A59       180       mov R2, #89
+00E3 79FA       181   LA: mov R1, #250
+00E5 78A6       182   LB: mov R0, #166
+00E7 D8FE       183   LC: djnz R0, LC ; 3 cycles->3*45.21123ns*166=22.51519us
+00E9 D9FA       184       djnz R1, LB ; 22.51519us*250=5.629ms
+00EB DAF6       185       djnz R2, LA ; 5.629ms*89=0.5s (approximately)
+00ED B2B7       186   cpl P3.7
+00EF 22         187       ret
+00F0            188   
+00F0            189   Eat:
+00F0 ED         190            mov a, R5 ; Move cursor 
+00F1 120049     191       lcall WriteCommand
+00F4            192       
+00F4 7400       193            mov a, #0x0 ;setpacman
+00F6 120044     194       lcall WriteData
+00F9 1200E1     195       lcall WaitHalfSec
+00FC            196                
+00FC ED         197            mov a, R5 ; Move cursor 
+00FD 120049     198       lcall WriteCommand
+0100            199       
+0100 7401       200            mov a, #0x1 ;set pacman eating it
+0102 120044     201       lcall WriteData
+0105 1200E1     202       lcall WaitHalfSec
+0108            203            
+0108 ED         204            mov a, R5 ; Move cursor 
+0109 120049     205       lcall WriteCommand
+010C            206       
+010C 7402       207            mov a, #0x2 ;clear because pacman already ate it
+010E 120044     208       lcall WriteData
+0111 1200E1     209       lcall WaitHalfSec
+0114 22         210   ret    
+0115            211   
+0115            212   SetPACMAN:
+0115 7440       213            mov a, #0x40 ;pacman face
+0117 120049     214       lcall WriteCommand
+011A 740E       215       mov a, #0x0e
+011C 120044     216       lcall WriteData  
+011F 741F       217       mov a, #0x1f
+0121 120044     218       lcall WriteData 
+0124 741E       219       mov a, #0x1e 
+0126 120044     220       lcall WriteData
+0129 741C       221       mov a, #0x1c
+012B 120044     222       lcall WriteData 
+012E 741E       223       mov a, #0x1e
+0130 120044     224       lcall WriteData
+0133 741F       225       mov a, #0x1f 
+0135 120044     226       lcall WriteData
+0138 740E       227       mov a, #0x0e   
+013A 120044     228       lcall WriteData
+013D 7400       229       mov a, #0x00
+013F 120044     230       lcall WriteData
+0142            231       
+0142 740E       232       mov a, #0x0e ;pacman eating face
+0144 120044     233       lcall WriteData  
+0147 741F       234       mov a, #0x1f
+0149 120044     235       lcall WriteData 
+014C 741F       236       mov a, #0x1f 
+014E 120044     237       lcall WriteData
+0151 741F       238       mov a, #0x1f
+0153 120044     239       lcall WriteData 
+0156 741F       240       mov a, #0x1f
+0158 120044     241       lcall WriteData
+015B 741F       242       mov a, #0x1f 
+015D 120044     243       lcall WriteData
+0160 740E       244       mov a, #0x0e
+0162 120044     245       lcall WriteData 
+0165 7400       246       mov a, #0x00
+0167 120044     247       lcall WriteData 
+016A            248        
+016A 7400       249       mov a, #0x00 ; clear
+016C 120044     250       lcall WriteData 
+016F 7400       251       mov a, #0x00 
+0171 120044     252       lcall WriteData
+0174 7400       253       mov a, #0x00
+0176 120044     254       lcall WriteData 
+0179 7400       255       mov a, #0x00
+017B 120044     256       lcall WriteData
+017E 7400       257       mov a, #0x00 
+0180 120044     258       lcall WriteData
+0183 7400       259       mov a, #0x00
+0185 120044     260       lcall WriteData 
+0188 7400       261       mov a, #0x00
+018A 120044     262       lcall WriteData 
+018D 7400       263       mov a, #0x00
+018F 120044     264       lcall WriteData 
+0192 22         265            ret
+0193            266   MyName:
+0193 464F4E44   267            DB 'FONDA CHAU', 0
+     41204348
+     415500
+019E            268   MYSTUDENTNUMBER:
+019E 31353935   269            DB '15954143',0
+     34313433
+     00
+01A7            270   
+01A7            271   GetName:
+01A7 E4         272            CLR a
+01A8 93         273            MOVC a, @a+dptr
+01A9 6006       274            jz DONE1
+01AB 120044     275            LCALL WriteData
+01AE A3         276            INC DPTR
+01AF 80F6       277            SJMP GetName
+01B1            278            
+01B1 22         279   DONE1: ret
+01B2            280   
+01B2            281   END
